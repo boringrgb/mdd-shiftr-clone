@@ -4,18 +4,17 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    # do nothing on pull request
 
 jobs:
   # build the containers first
-  build:
+  build-container:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - name: Docker compose the containers
       run: docker compose up -d --build
 
-  # deploy to prod
   deploy-production:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -31,8 +30,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ${{ secrets.DEPLOY_PATH }}
+            cd ${{ env.DEPLOY_PATH }}
             git pull origin main
             docker compose up -d --build
-            # Key addition: clean up unused images
-            docker image prune -a -f
+            docker image prune -f

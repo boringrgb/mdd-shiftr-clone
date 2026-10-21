@@ -1,4 +1,5 @@
 node_modules
+etc/keys
 mosquitto/log/mosquitto.log
 mosquitto/data/mosquitto.db
 .env
