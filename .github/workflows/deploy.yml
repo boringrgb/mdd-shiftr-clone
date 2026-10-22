@@ -98,5 +98,5 @@ jobs:
             set -e    # fail entire deployment if any one of these commands fails
             cd ${{ vars.DEPLOY_PATH }}
 
-            docker compose up -d --build
+            docker compose up -d --build --remove-orphans
             docker image prune -f
