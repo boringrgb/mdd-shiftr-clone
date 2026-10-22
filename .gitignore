@@ -3,5 +3,6 @@ etc/keys
 mosquitto/log/mosquitto.log
 mosquitto/data/mosquitto.db
 .env
+.vscode
 dist
 .DS_Store
