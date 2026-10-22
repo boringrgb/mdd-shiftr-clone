@@ -51,6 +51,11 @@ jobs:
           chmod 644 etc/mosquitto/config/passwd
 
       - name: Build static fronted with vitejs before we transfer it to server
+        env:
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
+          LOGSERVER_CONNECTIONS: ${{ vars.LOGSERVER_CONNECTIONS }}
+          MQTTWS_HOST: ${{ vars.MQTTWS_HOST }}
         run: |
             set -e    # fail entire deployment if any one of these commands fails
 
@@ -65,8 +70,8 @@ jobs:
             docker build \
               -f src/client/Dockerfile \
               --target export \
-              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=https://${{ secrets.MQTT_USERNAME }}:${{ secrets.MQTT_PASSWORD }}@${{ vars.MQTTWS_HOST }}/mqtt \
-              --build-arg VITE_CLIENT_HTTP_CONNECTIONS=${{ vars.HTTP_CONNECTIONS }} \
+              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=https://$MQTT_USERNAME:$MQTT_PASSWORD@$MQTTWS_HOST/mqtt \
+              --build-arg VITE_CLIENT_HTTP_CONNECTIONS=$HTTP_CONNECTIONS \
               --output type=local,dest=src/client/dist.new \
               .
 
