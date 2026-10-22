@@ -8,9 +8,9 @@ services:
       - "1883:1883" # mqtt
       - "8083:8083" # mqtt-ws
     volumes:
-      - ./mosquitto/config:/mosquitto/config
-      - ./mosquitto/data:/mosquitto/data
-      - ./mosquitto/log:/mosquitto/log
+      - ./etc/mosquitto/config:/mosquitto/config
+      - ./etc/mosquitto/data:/mosquitto/data
+      - ./etc/mosquitto/log:/mosquitto/log
 
   backend:
     restart: unless-stopped
@@ -23,11 +23,11 @@ services:
     depends_on:
       - mosquitto
     volumes:
-      - ./mosquitto/log:/usr/src/app/mosquitto/log
+      - ./etc/mosquitto/log:/usr/src/app/mosquitto/log
     environment:
       - PORT=9999
       - SERVER_MQTT_CONNECTION_STRING=mqtt://${MQTT_USERNAME}:${MQTT_PASSWORD}@mosquitto:1883
-      - SERVER_MQTT_LOG_FILE=mosquitto/log/mosquitto.log
+      - SERVER_MQTT_LOG_FILE=etc/mosquitto/log/mosquitto.log
 
   frontend:
     image: caddy:2

@@ -77,7 +77,7 @@ jobs:
       - name: Copy files to server
         uses: burnett01/rsync-deployments@9.0.2
         with:
-          switches: -avzr --delete --exclude='.git/' --exclude='mosquitto/data/' --exclude='mosquitto/log/'
+          switches: -avzr --delete --exclude='.git/' --exclude='etc/mosquitto/data/' --exclude='etc/mosquitto/log/'
           path: ./
           remote_path: ${{ vars.DEPLOY_PATH }}
           remote_host: ${{ secrets.SSH_HOST }}
