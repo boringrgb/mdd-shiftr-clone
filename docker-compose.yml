@@ -2,22 +2,22 @@
 services:
   mosquitto:
     restart: unless-stopped
-    image: eclipse-mosquitto:latest
+    image: eclipse-mosquitto:2
     container_name: mosquitto
     ports:
-      - "1883:1883" # MQTT port
-      - "8083:8083" # MQTT over WebSockets (optional)
+      - "1883:1883" # mqtt
+      - "8083:8083" # mqtt-ws
     volumes:
       - ./mosquitto/config:/mosquitto/config
       - ./mosquitto/data:/mosquitto/data
       - ./mosquitto/log:/mosquitto/log
 
-  server:
+  backend:
     restart: unless-stopped
     build:
       context: .
       dockerfile: src/server/Dockerfile
-    container_name: server
+    container_name: backend
     ports:
       - "9999:9999"
     depends_on:
@@ -29,14 +29,11 @@ services:
       - SERVER_MQTT_CONNECTION_STRING=mqtt://${MQTT_USERNAME:?MQTT_USERNAME is not set}:${MQTT_PASSWORD:?MQTT_PASSWORD is not set}@mosquitto:1883
       - SERVER_MQTT_LOG_FILE=mosquitto/log/mosquitto.log
 
-  # nginx:
-  #   restart: unless-stopped
-  #   image: nginx:latest
-  #   container_name: nginx
-  #   ports:
-  #     - "5173:80"
-  #   volumes:
-  #     - ./src/client/dist:/usr/share/nginx/html
-  #     - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
-  #   depends_on:
-  #     - client
+  frontend:
+    image: caddy:2
+    restart: unless-stopped
+    volumes:
+      - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./src/client/dist:/srv:ro
+    ports:
+      - "8081:80"
