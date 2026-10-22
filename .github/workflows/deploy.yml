@@ -25,6 +25,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
+      # generate a fresh mosquitto password file from the 'production' environment settings,
+      # it replaces the one from the checkout and gets rsynced to the server in the next step
+      - name: Generate mosquitto password file for deployment
+        env:
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
+        run: |
+          set -e
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e MQTT_USERNAME -e MQTT_PASSWORD \
+            -v "$PWD/mosquitto/config:/mosquitto/config" \
+            eclipse-mosquitto:latest \
+            sh -c 'mosquitto_passwd -c -b /mosquitto/config/passwd "$MQTT_USERNAME" "$MQTT_PASSWORD"'
+
+          # mosquitto runs as its own user inside the container and must be able to read the file
+          chmod 644 mosquitto/config/passwd
+
       - name: Copy files to server
         uses: burnett01/rsync-deployments@9.0.2
         with:
@@ -56,7 +75,7 @@ jobs:
             docker build \
               -f src/client/Dockerfile \
               --target export \
-              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=${{ vars.MQTTWS_CONNECTION_STRING }} \
+              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=ws://${{ secrets.MQTT_USERNAME }}:${{ secrets.MQTT_PASSWORD }}@${{ vars.MQTTWS_HOST }}:${{ vars.MQTTWS_PORT }} \
               --build-arg VITE_CLIENT_HTTP_CONNECTIONS=${{ vars.HTTP_CONNECTIONS }} \
               --output type=local,dest=src/client/dist.new \
               .
