@@ -29,18 +29,6 @@ services:
       - SERVER_MQTT_CONNECTION_STRING=mqtt://username:password@mosquitto:1883
       - SERVER_MQTT_LOG_FILE=mosquitto/log/mosquitto.log
 
-  client:
-#    user: "1002:1002" # prevent the container from compiling as root resulting in directories that can't be deleted on the deployment machine
-    build:
-      context: .
-      dockerfile: src/client/Dockerfile
-      args:
-        - VITE_CLIENT_MQTT_CONNECTION_STRING=ws://username:password@127.0.0.1:8083
-        - VITE_CLIENT_HTTP_CONNECTIONS=http://127.0.0.1:9999
-    container_name: client
-    volumes:
-      - ./src/client/dist:/usr/src/app/src/client/dist
-
   # nginx:
   #   restart: unless-stopped
   #   image: nginx:latest
