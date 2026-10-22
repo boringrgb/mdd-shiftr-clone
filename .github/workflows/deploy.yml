@@ -1,6 +1,8 @@
 name: Build image + deploy
 
 on:
+  workflow_dispatch:
+    # make it possible to trigger action by hand
   push:
     branches: [ "main" ]
   pull_request:
