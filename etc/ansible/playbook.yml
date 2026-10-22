@@ -1,0 +1,216 @@
+---
+# Provisions a stock Ubuntu 24.04 host:
+#   - base packages (docker, fail2ban, git, nnn, tmux, curl)
+#   - users: tools, production, mqtt
+#   - gpakosz/.tmux config for the ubuntu admin user
+#   - SSH key login, www and workbench directories and rootless docker
+#     for each user
+#
+# Usage:
+#   ansible-playbook -i etc/ansible/inventory.ini etc/ansible/playbook.yml
+
+- name: Provision Ubuntu 24.04 host
+  hosts: all
+  become: true
+
+  vars:
+    base_packages:
+      - fail2ban
+      - git
+      - nnn
+      - tmux
+      - curl
+      - ca-certificates
+      - acl # lets ansible `become_user` an unprivileged user
+    docker_packages:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin # `docker compose`, for root and rootless users
+      - docker-ce-rootless-extras
+      - uidmap
+      - dbus-user-session
+      - slirp4netns
+    managed_users:
+      - tools
+      - production
+      - mqtt
+    # Public key (on the control node) allowed to log in as each managed user.
+    # It becomes the only entry in that user's ~/.ssh/authorized_keys.
+    ssh_public_keys:
+      tools: "{{ playbook_dir }}/../keys/id_mdd_tools.pub"
+      production: "{{ playbook_dir }}/../keys/id_mdd_production_deploy.pub"
+      mqtt: "{{ playbook_dir }}/../keys/id_mdd_mqtt.pub"
+    # Default admin user on OpenStack Ubuntu images.
+    admin_user: ubuntu
+    docker_apt_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"
+
+  handlers:
+    - name: Reload AppArmor
+      ansible.builtin.systemd_service:
+        name: apparmor
+        state: restarted
+
+  tasks:
+    - name: Ensure this is Ubuntu 24.04
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['distribution'] == 'Ubuntu'
+          - ansible_facts['distribution_version'] == '24.04'
+        fail_msg: "This playbook targets Ubuntu 24.04 only"
+
+    # Checked on the control node, before anything changes on the server.
+    - name: Ensure each managed user has a public key file
+      ansible.builtin.assert:
+        that:
+          - ssh_public_keys[item] is defined
+          - ssh_public_keys[item] is file
+        fail_msg: "No public key for {{ item }}; expected {{ ssh_public_keys[item] | default('an entry in ssh_public_keys') }}"
+      loop: "{{ managed_users }}"
+
+    # --- packages -----------------------------------------------------------
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name: "{{ base_packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Add Docker apt repository
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: deb
+        uris: https://download.docker.com/linux/ubuntu
+        suites: "{{ ansible_facts['distribution_release'] }}"
+        components: stable
+        architectures: "{{ docker_apt_arch }}"
+        signed_by: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Install Docker packages
+      ansible.builtin.apt:
+        name: "{{ docker_packages }}"
+        state: present
+        update_cache: true
+
+    # --- fail2ban -----------------------------------------------------------
+
+    # Ubuntu's package ships /etc/fail2ban/jail.d/defaults-debian.conf which
+    # already enables the sshd jail.
+    - name: Enable and start fail2ban
+      ansible.builtin.systemd_service:
+        name: fail2ban
+        enabled: true
+        state: started
+
+    # --- rootless docker prerequisites ---------------------------------------
+
+    # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor;
+    # rootlesskit needs an explicit profile allowing them.
+    - name: Allow rootlesskit to create user namespaces (AppArmor)
+      ansible.builtin.copy:
+        dest: /etc/apparmor.d/usr.bin.rootlesskit
+        mode: "0644"
+        content: |
+          abi <abi/4.0>,
+          include <tunables/global>
+
+          /usr/bin/rootlesskit flags=(unconfined) {
+            userns,
+
+            include if exists <local/usr.bin.rootlesskit>
+          }
+      notify: Reload AppArmor
+
+    - name: Apply AppArmor changes before setting up rootless docker
+      ansible.builtin.meta: flush_handlers
+
+    # The rootful daemon runs the top-level webserver that proxies to the
+    # rootless containers; it coexists with the per-user rootless daemons.
+    - name: Enable and start system-wide docker daemon
+      ansible.builtin.systemd_service:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Check docker compose is available
+      ansible.builtin.command: docker compose version
+      changed_when: false
+
+    # --- users --------------------------------------------------------------
+
+    - name: Create users
+      ansible.builtin.user:
+        name: "{{ item }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+      loop: "{{ managed_users }}"
+
+    - name: Read /etc/subuid
+      ansible.builtin.slurp:
+        src: /etc/subuid
+      register: subuid_file
+
+    - name: Ensure each user has a subordinate UID range
+      ansible.builtin.assert:
+        that:
+          - (subuid_file.content | b64decode) is search('^' ~ item ~ ':', multiline=True)
+        fail_msg: "{{ item }} has no entry in /etc/subuid; rootless docker needs one"
+      loop: "{{ managed_users }}"
+
+    - name: Look up user info
+      ansible.builtin.getent:
+        database: passwd
+
+    - name: Enable lingering so user services run without a login session
+      ansible.builtin.command: loginctl enable-linger {{ item }}
+      args:
+        creates: /var/lib/systemd/linger/{{ item }}
+      loop: "{{ managed_users }}"
+
+    - name: Wait for user runtime dirs
+      ansible.builtin.wait_for:
+        path: /run/user/{{ getent_passwd[item][1] }}/bus
+      loop: "{{ managed_users }}"
+
+    # --- tmux (admin user only) ----------------------------------------------
+
+    - name: Configure gpakosz/.tmux for the admin user
+      become: true
+      become_user: "{{ admin_user }}"
+      vars:
+        admin_home: "{{ getent_passwd[admin_user][4] }}"
+      block:
+        - name: Clone gpakosz/.tmux
+          ansible.builtin.git:
+            repo: https://github.com/gpakosz/.tmux.git
+            dest: "{{ admin_home }}/.tmux"
+            version: master
+            single_branch: true
+            update: false
+
+        - name: Link ~/.tmux.conf
+          ansible.builtin.file:
+            src: .tmux/.tmux.conf
+            dest: "{{ admin_home }}/.tmux.conf"
+            state: link
+            force: true
+
+        - name: Copy ~/.tmux.conf.local
+          ansible.builtin.copy:
+            src: "{{ admin_home }}/.tmux/.tmux.conf.local"
+            dest: "{{ admin_home }}/.tmux.conf.local"
+            remote_src: true
+            force: false # keep local customisations on re-runs
+            mode: "0644"
+
+    # --- per-user setup -----------------------------------------------------
+
+    - name: Configure rootless docker per user
+      ansible.builtin.include_tasks: user.yml
+      loop: "{{ managed_users }}"
+      loop_control:
+        loop_var: username

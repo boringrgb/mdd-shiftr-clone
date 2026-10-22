@@ -1,0 +1,64 @@
+---
+# Per-user tasks, included from playbook.yml with `username` set.
+
+- name: "Set facts ({{ username }})"
+  ansible.builtin.set_fact:
+    user_home: "{{ getent_passwd[username][4] }}"
+    user_uid: "{{ getent_passwd[username][1] }}"
+
+- name: "Per-user tasks ({{ username }})"
+  become: true
+  become_user: "{{ username }}"
+  environment:
+    XDG_RUNTIME_DIR: /run/user/{{ user_uid }}
+    DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/{{ user_uid }}/bus
+  block:
+    - name: "Create www and workbench directories ({{ username }})"
+      ansible.builtin.file:
+        path: "{{ user_home }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - www
+        - workbench
+
+    # --- ssh ----------------------------------------------------------------
+
+    - name: "Create ~/.ssh ({{ username }})"
+      ansible.builtin.file:
+        path: "{{ user_home }}/.ssh"
+        state: directory
+        mode: "0700"
+
+    - name: "Install authorized SSH key ({{ username }})"
+      ansible.builtin.copy:
+        dest: "{{ user_home }}/.ssh/authorized_keys"
+        content: "{{ lookup('ansible.builtin.file', ssh_public_keys[username]) }}\n"
+        mode: "0600"
+
+    # --- rootless docker ----------------------------------------------------
+
+    - name: "Install rootless docker ({{ username }})"
+      ansible.builtin.command: dockerd-rootless-setuptool.sh install
+      args:
+        chdir: "{{ user_home }}"
+        creates: "{{ user_home }}/.config/systemd/user/docker.service"
+
+    - name: "Enable and start rootless docker ({{ username }})"
+      ansible.builtin.systemd_service:
+        name: docker
+        scope: user
+        enabled: true
+        state: started
+
+    # A docker context (stored in ~/.docker/config.json) also applies to
+    # non-interactive SSH sessions such as CI deploys, unlike ~/.bashrc.
+    - name: "Check current docker context ({{ username }})"
+      ansible.builtin.command: docker context show
+      register: docker_context
+      changed_when: false
+
+    - name: "Point docker CLI at rootless daemon ({{ username }})"
+      ansible.builtin.command: docker context use rootless
+      when: docker_context.stdout != 'rootless'
+      changed_when: true
