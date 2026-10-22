@@ -42,10 +42,16 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY_PRIVATE }}
           script: |
-            set -e
+            set -e    # fail entire deployment if any one of these commands fails
             cd ${{ vars.DEPLOY_PATH }}
 
+            # ----------------------------------------------------------------
             # build the client and export it to a staging dir owned by the deploy user
+            # we need to do this because the vite frontend is basically static and once
+            # generated it can be served by a webserver outside of the container
+            # so the container (which runs as root) doesn't need to own the resulting files
+            # if we don't do this, the CI deployment task fails because rsync cannot delete
+            # the files of the previous deployment without sudo rights (which the deployment user shouldn't have)
             rm -rf src/client/dist.new
             docker build \
               -f src/client/Dockerfile \
@@ -55,9 +61,11 @@ jobs:
               --output type=local,dest=src/client/dist.new \
               .
 
-            # swap it in for the live dir
+            # delete the static frontend from the previous deployment and
+            # move the new one over, this way we prevent accidentally serving a half-baked frontend
             rm -rf src/client/dist
             mv src/client/dist.new src/client/dist
+            # ----------------------------------------------------------------
 
             docker compose up -d --build
             docker image prune -f
