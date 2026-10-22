@@ -11,7 +11,7 @@ jobs:
   build-container:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@7.0.1
+    - uses: actions/checkout@v7.0.1
     - name: Docker compose the containers
       run: docker compose up -d --build
 
@@ -21,7 +21,7 @@ jobs:
     environment: production  # use settings of 'production' environment -> triggers manual review
     steps:
       - name: Checkout code
-        uses: actions/checkout@7.0.1
+        uses: actions/checkout@v7.0.1
 
       - name: Copy files to server
         uses: burnett01/rsync-deployments@9.0.2
@@ -34,7 +34,7 @@ jobs:
           remote_key: ${{ secrets.SSH_KEY_PRIVATE }}
 
       - name: Deploy via SSH
-        uses: appleboy/ssh-action@1.2.5
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
