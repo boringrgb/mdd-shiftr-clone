@@ -41,12 +41,12 @@ jobs:
           docker run --rm \
             --user "$(id -u):$(id -g)" \
             -e MQTT_USERNAME -e MQTT_PASSWORD \
-            -v "$PWD/mosquitto/config:/mosquitto/config" \
+            -v "$PWD/etc/mosquitto/config:/mosquitto/config" \
             eclipse-mosquitto:latest \
             sh -c 'mosquitto_passwd -c -b /mosquitto/config/passwd "$MQTT_USERNAME" "$MQTT_PASSWORD"'
 
           # mosquitto runs as its own user inside the container and must be able to read the file
-          chmod 644 mosquitto/config/passwd
+          chmod 644 etc/mosquitto/config/passwd
 
       - name: Build static fronted with vitejs before we transfer it to server
         run: |
