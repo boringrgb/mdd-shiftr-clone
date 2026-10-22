@@ -30,7 +30,7 @@ services:
       - SERVER_MQTT_LOG_FILE=mosquitto/log/mosquitto.log
 
   client:
-    user: "1002:1002" # prevent the container from compiling as root resulting in directories that can't be deleted on the deployment machine
+#    user: "1002:1002" # prevent the container from compiling as root resulting in directories that can't be deleted on the deployment machine
     build:
       context: .
       dockerfile: src/client/Dockerfile
