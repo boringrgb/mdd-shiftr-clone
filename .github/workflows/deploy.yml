@@ -7,14 +7,14 @@ on:
     # do nothing on pull request
 
 jobs:
-  # build the containers first
+  # containers must build first
   build-container:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v7.0.1
-    - name: Docker compose the containers
+    - name: Build the containers used for the backend
       run: docker compose up -d --build
-    - name: Build client
+    - name: Build static frontend files in container
       run: docker build -f src/client/Dockerfile --target build .
 
   deploy-production:
@@ -44,25 +44,9 @@ jobs:
           # mosquitto runs as its own user inside the container and must be able to read the file
           chmod 644 mosquitto/config/passwd
 
-      - name: Copy files to server
-        uses: burnett01/rsync-deployments@9.0.2
-        with:
-          switches: -avzr --delete --exclude='.git/' --exclude='src/client/dist/' --exclude='src/client/dist.new/' --exclude='mosquitto/data/' --exclude='mosquitto/log/'
-          path: ./
-          remote_path: ${{ vars.DEPLOY_PATH }}
-          remote_host: ${{ secrets.SSH_HOST }}
-          remote_user: ${{ secrets.SSH_USER }}
-          remote_key: ${{ secrets.SSH_KEY_PRIVATE }}
-
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.5
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY_PRIVATE }}
-          script: |
+      - name: Build static fronted with vitejs before we transfer it to server
+        run: |
             set -e    # fail entire deployment if any one of these commands fails
-            cd ${{ vars.DEPLOY_PATH }}
 
             # ----------------------------------------------------------------
             # build the client and export it to a staging dir owned by the deploy user
@@ -85,6 +69,26 @@ jobs:
             rm -rf src/client/dist
             mv src/client/dist.new src/client/dist
             # ----------------------------------------------------------------
+
+      - name: Copy files to server
+        uses: burnett01/rsync-deployments@9.0.2
+        with:
+          switches: -avzr --delete --exclude='.git/' --exclude='src/client/dist/' --exclude='src/client/dist.new/' --exclude='mosquitto/data/' --exclude='mosquitto/log/'
+          path: ./
+          remote_path: ${{ vars.DEPLOY_PATH }}
+          remote_host: ${{ secrets.SSH_HOST }}
+          remote_user: ${{ secrets.SSH_USER }}
+          remote_key: ${{ secrets.SSH_KEY_PRIVATE }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY_PRIVATE }}
+          script: |
+            set -e    # fail entire deployment if any one of these commands fails
+            cd ${{ vars.DEPLOY_PATH }}
 
             docker compose up -d --build
             docker image prune -f
