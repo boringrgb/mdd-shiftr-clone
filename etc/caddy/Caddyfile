@@ -17,6 +17,10 @@
 		reverse_proxy mosquitto:8083
 	}
 
+	handle /connections* {
+		reverse_proxy backend:9999
+	}
+
 	handle {
 		try_files {path} /index.html
 		file_server
