@@ -4,6 +4,10 @@ services:
     restart: unless-stopped
     image: eclipse-mosquitto:2
     container_name: mosquitto
+    # hack: skip the entrypoint, we want to run as root inside in a rootless container
+    # the default entrypoint was messing with file permissions
+    entrypoint: []
+    command: ["/usr/sbin/mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]
     ports:
       - "1883:1883" # mqtt
       - "8083:8083" # mqtt-ws
