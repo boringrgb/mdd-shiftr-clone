@@ -56,8 +56,8 @@ jobs:
             docker build \
               -f src/client/Dockerfile \
               --target export \
-              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=ws://username:password@127.0.0.1:8083 \
-              --build-arg VITE_CLIENT_HTTP_CONNECTIONS=http://127.0.0.1:9999 \
+              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=${{ vars.MQTTWS_CONNECTION_STRING }} \
+              --build-arg VITE_CLIENT_HTTP_CONNECTIONS=${{ vars.HTTP_CONNECTIONS }} \
               --output type=local,dest=src/client/dist.new \
               .
 
