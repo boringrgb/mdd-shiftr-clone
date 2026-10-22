@@ -26,7 +26,7 @@ services:
       - ./mosquitto/log:/usr/src/app/mosquitto/log
     environment:
       - PORT=9999
-      - SERVER_MQTT_CONNECTION_STRING=mqtt://username:password@mosquitto:1883
+      - SERVER_MQTT_CONNECTION_STRING=mqtt://${MQTT_USERNAME:?MQTT_USERNAME is not set}:${MQTT_PASSWORD:?MQTT_PASSWORD is not set}@mosquitto:1883
       - SERVER_MQTT_LOG_FILE=mosquitto/log/mosquitto.log
 
   # nginx:

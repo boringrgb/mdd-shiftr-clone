@@ -13,6 +13,10 @@ jobs:
     steps:
     - uses: actions/checkout@v7.0.1
     - name: Build the containers used for the backend
+      env:
+        # dummy credentials, docker-compose.yml refuses to start without them
+        MQTT_USERNAME: ci
+        MQTT_PASSWORD: ci
       run: docker compose up -d --build
     - name: Build static frontend files in container
       run: docker build -f src/client/Dockerfile --target build .
@@ -82,10 +86,14 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          MQTT_USERNAME: ${{ secrets.MQTT_USERNAME }}
+          MQTT_PASSWORD: ${{ secrets.MQTT_PASSWORD }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY_PRIVATE }}
+          envs: MQTT_USERNAME,MQTT_PASSWORD    # exported in the remote shell, docker compose fills them into docker-compose.yml
           script: |
             set -e    # fail entire deployment if any one of these commands fails
             cd ${{ vars.DEPLOY_PATH }}
