@@ -65,7 +65,7 @@ jobs:
             docker build \
               -f src/client/Dockerfile \
               --target export \
-              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=wss://${{ secrets.MQTT_USERNAME }}:${{ secrets.MQTT_PASSWORD }}@${{ vars.MQTTWS_HOST }}/mqtt \
+              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=https://${{ secrets.MQTT_USERNAME }}:${{ secrets.MQTT_PASSWORD }}@${{ vars.MQTTWS_HOST }}/mqtt \
               --build-arg VITE_CLIENT_HTTP_CONNECTIONS=${{ vars.HTTP_CONNECTIONS }} \
               --output type=local,dest=src/client/dist.new \
               .
