@@ -13,6 +13,13 @@ if (!url) {
   process.exit(2);
 }
 
+// mqtt.js silently falls back to raw TCP (mqtt://host:1883) for unknown schemes like https://
+const scheme = url.split(":")[0];
+if (!["ws", "wss", "mqtt", "mqtts"].includes(scheme)) {
+  console.error(`✗ unsupported scheme "${scheme}://" — use ws/wss (what the browser uses) or mqtt/mqtts`);
+  process.exit(2);
+}
+
 const TIMEOUT_MS = Number(process.env.TIMEOUT_MS ?? 10000);
 const topic = `shiftr-clone/test/${Date.now()}`;
 const masked = url.replace(/\/\/([^:@/]+):[^@/]*@/, "//$1:****@");
@@ -51,4 +58,9 @@ client.on("message", (t, payload) => {
 
 // ws handshake failures surface here, e.g. "Unexpected server response: 502"
 client.on("error", (err) => fail(`error: ${err.message}${err.code ? ` (code ${err.code})` : ""}`));
-client.on("close", () => console.log("· socket closed"));
+client.on("close", () => {
+  if (!client.connected && !client.disconnecting) {
+    fail("socket closed before MQTT CONNACK — the server didn't accept the WebSocket/MQTT handshake");
+  }
+  console.log("· socket closed");
+});

@@ -33,7 +33,9 @@ services:
     image: caddy:2
     restart: unless-stopped
     volumes:
-      - ./etc/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # mount the directory, not the file: rsync replaces the file (new inode) and a
+      # single-file bind mount would keep pointing at the old one
+      - ./etc/caddy:/etc/caddy:ro
       - ./src/client/dist:/srv:ro
     ports:
       - "8081:80"

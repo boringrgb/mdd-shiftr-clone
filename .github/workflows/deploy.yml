@@ -70,8 +70,8 @@ jobs:
             docker build \
               -f src/client/Dockerfile \
               --target export \
-              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=https://$MQTT_USERNAME:$MQTT_PASSWORD@$MQTTWS_HOST/mqtt \
-              --build-arg VITE_CLIENT_HTTP_CONNECTIONS=$HTTP_CONNECTIONS \
+              --build-arg VITE_CLIENT_MQTT_CONNECTION_STRING=wss://$MQTT_USERNAME:$MQTT_PASSWORD@$MQTTWS_HOST/mqtt \
+              --build-arg VITE_CLIENT_HTTP_CONNECTIONS=$LOGSERVER_CONNECTIONS \
               --output type=local,dest=src/client/dist.new \
               .
 
@@ -106,4 +106,6 @@ jobs:
             cd ${{ vars.DEPLOY_PATH }}
 
             docker compose up -d --build --remove-orphans
+            # caddy runs with 'admin off' so it can't hot-reload, restart it to pick up Caddyfile changes
+            docker compose restart frontend
             docker image prune -f
