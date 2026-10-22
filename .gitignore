@@ -1,7 +1,7 @@
 node_modules
 etc/keys
-mosquitto/log/mosquitto.log
-mosquitto/data/mosquitto.db
+etc/mosquitto/log/mosquitto.log
+etc/mosquitto/data/mosquitto.db
 .env
 .vscode
 .ansible
